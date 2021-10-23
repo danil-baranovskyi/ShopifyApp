@@ -1,22 +1,29 @@
 import ApolloClient from "apollo-boost";
 import {ApolloProvider} from "react-apollo";
-import {AppProvider} from "@shopify/polaris";
+import {
+  AppProvider,
+  Frame,
+  ContextualSaveBar
+} from "@shopify/polaris";
 import {Provider, useAppBridge} from "@shopify/app-bridge-react";
 import {authenticatedFetch} from "@shopify/app-bridge-utils";
 import {Redirect} from "@shopify/app-bridge/actions";
 import translations from "@shopify/polaris/locales/en.json";
-import React, {useEffect} from "react";
+import React from "react";
 import ReactDOM from "react-dom"
 import "@shopify/polaris/dist/styles.css";
-import ShowProducts from "./components/ShowProducts/ShowProducts";
-import {BrowserRouter as Router} from "react-router-dom";
+import {BrowserRouter as Router, Route, Switch} from "react-router-dom";
+import RoutePropagator from "./components/Routing/RoutePropagator";
+import Routes from "./components/Routing/Routes";
 
 function userLoggedInFetch(app) {
   const fetchFunction = authenticatedFetch(app);
 
   return async (uri, options) => {
     const response = await fetchFunction(uri, options);
-
+    console.log("RESPONSE")
+    console.log(response)
+    console.log("RESPONSE")
     if (
       response.headers.get("X-Shopify-API-Request-Failure-Reauthorize") === "1"
     ) {
@@ -35,9 +42,6 @@ function userLoggedInFetch(app) {
 
 
 const Index = () => {
-  useEffect(() => {
-    console.log("serfsdfsdffsdfsdfff")
-  }, [])
   const app = useAppBridge();
   const client = new ApolloClient({
     fetch: userLoggedInFetch(app),
@@ -47,14 +51,22 @@ const Index = () => {
   });
 
   return (
-    <Router>
+    <Router basename="/">
       <ApolloProvider client={client}>
-        <AppProvider i18n={translations}>
-
-          <ShowProducts/>
-          {/*<RoutePropagator/>*/}
-          REACT ROUTER SHOULD BE HERE
-          FUCKAgdg
+        <AppProvider i18n={{
+          ...translations,
+          Polaris: {
+            Frame: {
+              skipToContent: 'Skip to content',
+            },
+            ContextualSaveBar: {
+              save: 'Save',
+              discard: 'Discard',
+            },
+          },
+        }}>
+          <RoutePropagator/>
+          <Routes/>
         </AppProvider>
       </ApolloProvider>
     </Router>

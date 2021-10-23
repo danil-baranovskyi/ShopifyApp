@@ -1,11 +1,10 @@
 import React from "react";
 import {RoutePropagator as AppBridgeRoutePropagator} from "@shopify/app-bridge-react";
-import {withRouter} from "react-router-dom";
+import {withRouter} from "react-router";
 
-const RoutePropagator = ({router}) => {
-  console.log("PROPAGATOR" + router)
+const RoutePropagator = ({location}) => {
   return (
-    <AppBridgeRoutePropagator location={router}/>
+    <AppBridgeRoutePropagator location={location}/>
   )
 }
 

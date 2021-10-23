@@ -11,19 +11,43 @@ import {
   TextField,
   Button,
   Filters,
-  Frame, Loading
+  Frame,
+  Loading,
+  Page
 } from "@shopify/polaris";
 import {gql} from "graphql-tag";
 import {useLazyQuery, useMutation, useQuery} from "react-apollo";
 import {useMemoizedQuery} from "../../hooks/useMemoizedQuery";
 import pick from "lodash/pick"
+import pickBy from "lodash/pickBy"
 import debounce from "lodash/debounce";
 import createQueryVariables from "../../helpers/createQueryVariables.js"
-import {useHistory, withRouter} from "react-router-dom";
+import {useParams, withRouter} from "react-router";
+import qs from "query-string";
+import isNull from "lodash/isNull";
+import omitBy from "lodash/omitBy";
+import {getIdFromGid} from "../../helpers/getIdfromGid";
+import {getSortOptions} from "../../helpers/getSortOptions";
 
 const GET_PRODUCTS = gql`
-  query getProduct($first: Int, $last: Int, $after: String, $before: String, $search: String){
-    products(first: $first, after: $after, last: $last, before: $before, query: $search){
+  query getProducts(
+    $first: Int,
+    $last: Int,
+    $after: String,
+    $before: String,
+    $search: String,
+    $sortKey: ProductSortKeys,
+    $reverse: Boolean
+  ){
+    products(
+      first: $first,
+      after: $after,
+      last: $last,
+      before: $before,
+      query: $search,
+      sortKey: $sortKey
+      reverse: $reverse
+    ){
       pageInfo {
         hasNextPage
         hasPreviousPage
@@ -33,6 +57,8 @@ const GET_PRODUCTS = gql`
         node {
           id
           title
+          createdAt
+          updatedAt
           priceRange {
             maxVariantPrice {
               amount
@@ -57,16 +83,63 @@ const DELETE_PRODUCT = gql`
   }
 `
 
-const ShowProducts = () => {
-  const router = useHistory();
-  console.log(router)
-  console.log("showproducts" + router)
-  const [selectedItems, setSelectedItems] = useState([]);
-  const [sortValue, setSortValue] = useState('DATE_MODIFIED_DESC');
-  const [taggedWith, setTaggedWith] = useState('VIP');
-  // const [search, setSearch] = useState(null);
-  // const [search, setSearch] = useState(router.query.search || null);
+export const SORT_OPTIONS = [
+  {
+    label: 'Product Title A-Z',
+    value: "title",
+    query: {
+      reverse: false,
+      sortKey: 'TITLE'
+    }
+  },
+  {
+    label: 'Product Title Z-A',
+    value: "titleReversed",
+    query: {
+      reverse: true,
+      sortKey: 'TITLE'
+    }
+  },
+  {
+    label: 'Created (oldest first)',
+    value: "createdOldest",
+    query: {
+      reverse: false,
+      sortKey: 'CREATED_AT'
+    }
+  },
+  {
+    label: 'Created (newest first)',
+    value: "createdNewest",
+    query: {
+      reverse: true,
+      sortKey: 'CREATED_AT'
+    }
+  },
+  {
+    label: 'Update (oldest first)',
+    value: "updateOldest",
+    query: {
+      reverse: false,
+      sortKey: 'UPDATED_AT'
+    }
+  },
+  {
+    label: 'Update (newest first)',
+    value: "updateNewest",
+    query: {
+      reverse: true,
+      sortKey: 'UPDATED_AT'
+    }
+  },
+];
 
+const ShowProducts = ({location, history}) => {
+  console.log(location)
+  const [selectedItems, setSelectedItems] = useState([]);
+  const [sortValue, setSortValue] = useState(getSortOptions(pick(qs.parse(location.search).sort), ["value"]) || '');
+  const [taggedWith, setTaggedWith] = useState('VIP');
+  const [searchValue, setSearch] = useState(null);
   const handleTaggedWithChange = useCallback(
     (value) => setTaggedWith(value),
     [],
@@ -77,7 +150,7 @@ const ShowProducts = () => {
   const handleClearAll = useCallback(() => {
     handleTaggedWithRemove();
     handleQueryValueRemove();
-  }, [ handleTaggedWithRemove]);
+  }, [handleTaggedWithRemove]);
 
   const resourceName = {
     singular: 'product',
@@ -87,21 +160,15 @@ const ShowProducts = () => {
   const promotedBulkActions = [
     {
       content: 'Edit customers',
-      onAction: () => console.log('Todo: implement bulk edit'),
+      onAction: () => {
+        history.push(`/edit/${getIdFromGid(selectedItems[0])}`)
+      }
     },
   ];
 
   const bulkActions = [
     {
-      content: 'Add tags',
-      onAction: () => console.log('Todo: implement bulk add tags'),
-    },
-    {
-      content: 'Remove tags',
-      onAction: () => console.log('Todo: implement bulk remove tags'),
-    },
-    {
-      content: 'Delete customers',
+      content: 'Delete products',
       onAction: async () => {
         await Promise.all(selectedItems.map(async (el) => {
           await deleteProduct({
@@ -109,13 +176,12 @@ const ShowProducts = () => {
               id: el
             }
           })
-          await console.log("deleted")
         }))
         await getProducts({
           variables: createQueryVariables()
         })
         await setSelectedItems([])
-        router.push({query: {}})
+        history.push({search: qs.stringify(pick(qs.parse(location.search), ["sort"]))})
       },
     },
   ];
@@ -147,43 +213,51 @@ const ShowProducts = () => {
     ]
     : [];
 
-  const [getProducts, {data, loading}] = useMemoizedQuery(GET_PRODUCTS);
+  const [getProducts, {data, loading}] = useMemoizedQuery(GET_PRODUCTS, {
+    fetchPolicy: "network-only",
+  });
   const [deleteProduct] = useMutation(DELETE_PRODUCT);
 
+  const handleAddProduct = useCallback(() => {
+    history.push("/add")
+  }, [])
 
   const handleQueryValueRemove = useCallback(() => {
-    router.push({query: {}});
-    // setSearch(null);
-    const {after = null, before = null, search = null} = {};
-    // const {after = null, before = null, search = null} = router.query;
-
+    const {after = null, before = null, search = null, sort = null} = {};
     handleLoadProduct(
       createQueryVariables({after, before, search})
     )
+    setSearch(null);
+    history.push({search: ""});
   }, []);
 
-
-
   const handleLoadProduct = useCallback((params) => {
+    const {sort = null} = qs.parse(location.search) || {...params};
     params = {
-
-      ...params
+      ...params,
+      sort
     }
-    console.log(params)
-    getProducts({variables: createQueryVariables(params)});
 
-    router.push({query: pick(params, ["after", "before", "search"])})
-  }, [getProducts, data]);
+    setSelectedItems([]);
+    getProducts({variables: createQueryVariables(params)});
+    history.push({search: qs.stringify(pick(omitBy(params, isNull), ["after", "before", "search", "sort"]))})
+  }, [getProducts, data, sortValue]);
 
   const debouncedFetchData = useCallback(debounce((query) => {
     handleLoadProduct(query.variables);
-    router.push({query: {
-        search: query.variables.search
-      }})
+    history.push({search: query.variables.search})
   }, 1000), [getProducts, handleLoadProduct]);
+
+  const handleSortChange = useCallback((selected) => {
+    selected = getSortOptions(selected);
+    setSortValue(selected.query.sortKey);
+    handleLoadProduct(selected)
+    history.push({search: `sort=${selected.value}`})
+  }, [])
 
   const handleQueryValueChange = useCallback(
     (value) => {
+      value === '' ? value = null : value;
       setSearch(value)
       debouncedFetchData({
         variables: {
@@ -206,16 +280,16 @@ const ShowProducts = () => {
   }, [data]);
 
   useEffect(() => {
-    const {after = null, before = null, search = null} = {};
+    const {after = null, before = null, search = null, sort = null} = qs.parse(location.search) || {};
 
     getProducts({
-      variables: createQueryVariables({after, before, search})
+      variables: createQueryVariables({after, before, search, sort})
     })
-  }, []);
+  }, [sortValue]);
 
   const filterControl = (
     <Filters
-      queryValue={"jjajaja"}
+      queryValue={searchValue}
       filters={filters}
       appliedFilters={appliedFilters}
       onQueryChange={handleQueryValueChange}
@@ -227,41 +301,45 @@ const ShowProducts = () => {
       </div>
     </Filters>
   );
-
   return (
     <Frame>
       {loading && <Loading/>}
       {
         data &&
-        <Card>
-          <ResourceList
-            loading={loading}
-            resourceName={resourceName}
-            items={data.products.edges}
-            idForItem={item => item.node.id}
-            renderItem={renderItem}
-            selectedItems={selectedItems}
-            onSelectionChange={setSelectedItems}
-            promotedBulkActions={promotedBulkActions}
-            bulkActions={bulkActions}
-            sortValue={sortValue}
-            sortOptions={[
-              {label: 'Newest update', value: 'DATE_MODIFIED_DESC'},
-              {label: 'Oldest update', value: 'DATE_MODIFIED_ASC'},
-            ]}
-            onSortChange={(selected) => {
-              setSortValue(selected);
-              console.log(`Sort option changed to ${selected}.`);
-            }}
-            filterControl={filterControl}
-          />
-          <Pagination
-            hasPrevious={data.products.pageInfo.hasPreviousPage}
-            onPrevious={handlePrevProducts}
-            hasNext={data.products.pageInfo.hasNextPage}
-            onNext={handleNextProducts}
-          />
-        </Card>
+        <Page title="Products" primaryAction={{
+          content: "Add Product",
+          onAction: handleAddProduct
+
+        }}>
+          <Card>
+            <ResourceList
+              loading={loading}
+              resourceName={resourceName}
+              items={data.products.edges}
+              idForItem={item => item.node.id}
+              renderItem={renderItem}
+              selectedItems={selectedItems}
+              onSelectionChange={setSelectedItems}
+              promotedBulkActions={promotedBulkActions}
+              bulkActions={bulkActions}
+              sortValue={sortValue}
+              sortOptions={SORT_OPTIONS}
+              onSortChange={(selected) => {
+                selected = getSortOptions(selected);
+                setSortValue(selected.value);
+                handleLoadProduct(selected)
+                history.push({search: `sort=${selected.value}`})
+              }}
+              filterControl={filterControl}
+            />
+            <Pagination
+              hasPrevious={data.products.pageInfo.hasPreviousPage}
+              onPrevious={handlePrevProducts}
+              hasNext={data.products.pageInfo.hasNextPage}
+              onNext={handleNextProducts}
+            />
+          </Card>
+        </Page>
       }
     </Frame>
   );

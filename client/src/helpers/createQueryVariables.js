@@ -1,5 +1,15 @@
-const createQueryVariables = ({search = null, after= null, before = null, limit = 5} = {}) => {
-  const variables = {};
+import {SORT_OPTIONS} from "../components/ShowProducts/ShowProducts";
+
+const createQueryVariables = (
+  {
+    search = null,
+    after = null,
+    before = null,
+    limit = 5,
+    sort = null,
+    reverse = null
+  } = {}) => {
+  let variables = {};
 
   if (before) {
     variables.before = before;
@@ -11,7 +21,18 @@ const createQueryVariables = ({search = null, after= null, before = null, limit 
 
   if (search) {
     variables.search = search;
-    console.log("we have search")
+  }
+
+  if (sort) {
+    const option = SORT_OPTIONS.find((option) => option.value === sort);
+
+    if (option) {
+      variables = {...variables, ...option.query};
+    }
+  }
+
+  if (reverse) {
+    variables.reverse = reverse;
   }
 
   return variables;

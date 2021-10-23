@@ -1,19 +1,47 @@
 import * as path from "path";
 import HtmlWebpackPlugin from "html-webpack-plugin";
-import { dirname } from 'path';
-import { fileURLToPath } from 'url';
+import {dirname} from 'path';
+import {fileURLToPath} from 'url';
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
+import bundleAnalyzer from 'webpack-bundle-analyzer';
+
 
 export default {
-  mode: 'development',
-  entry: './src/index.js',
+  entry: {
+    app: {import: './src/index.js', dependOn: 'vendors'},
+    vendors: [
+      '@shopify/app-bridge',
+      "@shopify/app-bridge/actions",
+      "@shopify/app-bridge-react",
+      "@shopify/app-bridge-utils",
+      '@shopify/polaris',
+      "@shopify/polaris/dist/styles.css",
+      'react',
+      'react-dom',
+      'prop-types'
+    ],
+  },
+  // optimization: {
+  //   splitChunks: {
+  //     cacheGroups: {
+  //       commons: {
+  //         test: /[\\/]node_modules[\\/]/,
+  //         name: "vendor",
+  //         chunks: "initial",
+  //       },
+  //     },
+  //   },
+  // },
   devtool: "eval-source-map",
   output: {
     path: path.resolve(__dirname, '../static'),
-    filename: 'bundle.js',
+    filename: '[name].[hash].js',
+    clean: true,
   },
   plugins: [
+    // new bundleAnalyzer.BundleAnalyzerPlugin(),
     new HtmlWebpackPlugin({
       template: path.resolve(__dirname, 'src', 'index.html')
     })
