@@ -1,17 +1,20 @@
-import React from 'react';
-import ShowProducts from "./ShowProducts/ShowProducts.js";
-import {Page} from "@shopify/polaris"
+import React from "react";
+import { BrowserRouter as Router, Link, Route, Switch } from "react-router-dom";
+import PolarisProvider from "./providers/PolarisProvider.js";
+import ApolloProvider from "./providers/ApolloProvider.js";
+import "@shopify/polaris/dist/styles.css";
+import Routes from "./Routing/Routes";
+import RoutePropagator from "./Routing/RoutePropagator";
 
-const App = () => {
-  return (
-    <Page
-      title="Invoice"
-      subtitle="Statement period: May 3, 2019 to June 2, 2019"
-      secondaryActions={[{content: 'Download'}]}
-    >
-      <ShowProducts/>
-    </Page>
-  );
-};
+const App = () => (
+  <Router basename={"/"}>
+    <PolarisProvider>
+      <ApolloProvider>
+        <RoutePropagator />
+        <Routes/>
+      </ApolloProvider>
+    </PolarisProvider>
+  </Router>
+);
 
 export default App;

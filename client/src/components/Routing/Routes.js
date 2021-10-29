@@ -4,21 +4,19 @@ import ShowProducts from "../ShowProducts/ShowProducts.js";
 import Test from "../Test/Test.js";
 import EditProduct from "../Edit/EditProduct";
 import AddProduct from "../AddProduct/AddProduct";
+import Home from "../Home/Home";
 
 const Routes = () => {
   return (
     <Switch>
       <Route exact path="/">
-        <Test/>
+        <Home/>
       </Route>
       <Route path="/products">
         <ShowProducts/>
       </Route>
       <Route path="/edit/:id">
         <EditProduct/>
-      </Route>
-      <Route path="/test">
-        <Test/>
       </Route>
       <Route path="/add">
         <AddProduct/>

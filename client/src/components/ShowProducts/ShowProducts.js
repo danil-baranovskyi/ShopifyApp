@@ -135,7 +135,6 @@ export const SORT_OPTIONS = [
 ];
 
 const ShowProducts = ({location, history}) => {
-  console.log(location)
   const [selectedItems, setSelectedItems] = useState([]);
   const [sortValue, setSortValue] = useState(getSortOptions(pick(qs.parse(location.search).sort), ["value"]) || '');
   const [taggedWith, setTaggedWith] = useState('VIP');
